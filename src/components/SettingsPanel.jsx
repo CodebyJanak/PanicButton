@@ -82,10 +82,10 @@ export default function SettingsPanel({ isOpen, onClose, onClearApiKey }) {
               style={{ fontFamily:'var(--font-mono)', fontSize:'10px', color:'var(--text-2)', background:'rgba(255,255,255,0.03)', border:'1px solid var(--border)' }}>
               🔔 Clear all keyword alerts
             </button>
-            <button onClick={()=>{if(window.confirm('Remove API key?')) onClearApiKey();}}
+            <button disabled
               className="w-full text-left px-3 py-2.5 rounded-lg cursor-pointer transition-all hover:opacity-80"
               style={{ fontFamily:'var(--font-mono)', fontSize:'10px', color:'var(--red)', background:'rgba(255,0,0,0.04)', border:'1px solid rgba(255,0,0,0.12)' }}>
-              🔑 Remove NewsAPI key
+              🔑 API key is managed server-side
             </button>
           </Grp>
 
