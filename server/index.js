@@ -1,7 +1,7 @@
 import express from 'express'
-import axios from 'axios'
-import cors from 'cors'
-import path from 'path'
+import axios   from 'axios'
+import cors    from 'cors'
+import path    from 'path'
 import { fileURLToPath } from 'url'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -16,45 +16,58 @@ app.use(express.json())
 // ── NEWSAPI PROXY ─────────────────────────────────────────────────────────────
 app.get('/api/news/*', async (req, res) => {
   const API_KEY = process.env.NEWS_API_KEY
-  if (!API_KEY) return res.status(500).json({ message: 'NEWS_API_KEY not configured on server.' })
+  if (!API_KEY) return res.status(500).json({ message: 'NEWS_API_KEY not configured.' })
 
   const newsPath = req.path.replace('/api/news', '')
   const query    = new URLSearchParams(req.query)
   query.set('apiKey', API_KEY)
-  const url = `https://newsapi.org/v2${newsPath}?${query.toString()}`
 
   try {
-    const { data } = await axios.get(url, { timeout: 12000 })
+    const { data } = await axios.get(`https://newsapi.org/v2${newsPath}?${query}`, { timeout: 12000 })
     res.json(data)
   } catch (err) {
     res.status(err.response?.status || 500).json({ message: err.response?.data?.message || err.message })
   }
 })
 
-// ── ANTHROPIC AI PROXY ────────────────────────────────────────────────────────
-// Browser can't call api.anthropic.com directly (CORS blocked)
-// All AI calls go through here server-side
-app.post('/api/ai/messages', async (req, res) => {
-  const API_KEY = process.env.ANTHROPIC_API_KEY
-  if (!API_KEY) return res.status(500).json({ error: { message: 'ANTHROPIC_API_KEY not configured on server.' } })
+// ── GEMINI AI PROXY (FREE) ────────────────────────────────────────────────────
+// Uses Google Gemini 1.5 Flash — completely free, 15 RPM, 1M tokens/day
+app.post('/api/ai/gemini', async (req, res) => {
+  const API_KEY = process.env.GEMINI_API_KEY
+  if (!API_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY not configured on server.' })
+
+  const { systemPrompt, userPrompt, maxTokens = 1000 } = req.body
+
+  // Build Gemini API request
+  const geminiBody = {
+    contents: [
+      {
+        role: 'user',
+        parts: [{ text: userPrompt }]
+      }
+    ],
+    systemInstruction: systemPrompt ? {
+      parts: [{ text: systemPrompt }]
+    } : undefined,
+    generationConfig: {
+      maxOutputTokens: maxTokens,
+      temperature: 0.3,
+    }
+  }
 
   try {
-    const { data } = await axios.post(
-      'https://api.anthropic.com/v1/messages',
-      req.body,
-      {
-        headers: {
-          'Content-Type':         'application/json',
-          'x-api-key':            API_KEY,
-          'anthropic-version':    '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        timeout: 30000,
-      }
-    )
-    res.json(data)
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`
+    const { data } = await axios.post(url, geminiBody, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 30000,
+    })
+
+    // Extract text from Gemini response
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    res.json({ text })
   } catch (err) {
-    res.status(err.response?.status || 500).json(err.response?.data || { error: { message: err.message } })
+    const msg = err.response?.data?.error?.message || err.message
+    res.status(err.response?.status || 500).json({ error: msg })
   }
 })
 
